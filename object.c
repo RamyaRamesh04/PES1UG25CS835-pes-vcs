@@ -214,3 +214,21 @@ int object_read(const ObjectID *id, ObjectType *type_out, void **data_out, size_
     free(full_obj);
     return 0;
 }
+int object_hash_file(const char *path, ObjectID *id) {
+    FILE *f = fopen(path, "rb");
+    if (!f) return -1;
+
+    fseek(f, 0, SEEK_END);
+    long len = ftell(f);
+    fseek(f, 0, SEEK_SET);
+
+    void *buf = malloc(len);
+    fread(buf, 1, len, f);
+    fclose(f);
+
+    // This uses the internal hashing logic of your VCS
+    // Using OBJ_BLOB for standard files
+    int res = object_write(OBJ_BLOB, buf, len, id);
+    free(buf);
+    return res;
+}

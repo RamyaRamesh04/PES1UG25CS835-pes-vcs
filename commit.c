@@ -1,3 +1,4 @@
+
 // commit.c — Commit creation and history traversal
 //
 // Commit object format (stored as text, one field per line):
@@ -5,58 +6,13 @@
 //   tree <64-char-hex-hash>
 //   parent <64-char-hex-hash>        ← omitted for the first commit
 //   author <name> <unix-timestamp>
-//   committer <name> <unix-timestamp>
-//
+//   committer <na//
 //   <commit message>
 //
 // Note: there is a blank line between the headers and the message.
 //
 // PROVIDED functions: commit_parse, commit_serialize, commit_walk, head_read, head_update
-// TODO functions:     commit_create
-int commit_create(const char *message, ObjectID *commit_id_out) {
-    Commit commit = {0};
-
-    // 1. Create a tree from the current index
-    if (tree_from_index(&commit.tree) != 0) return -1;
-
-    // 2. Set author and timestamp
-    const char *author = getenv("PES_AUTHOR");
-    if (!author) author = "Unknown <unknown@example.com>";
-    strncpy(commit.author, author, sizeof(commit.author) - 1);
-    commit.timestamp = (uint64_t)time(NULL);
-
-    // 3. Set message
-    strncpy(commit.message, message, sizeof(commit.message) - 1);
-
-    return -1; // Placeholder
-
-}
-// 4. Set parent (if it exists)
-    if (head_read(&commit.parent) == 0) {
-        commit.has_parent = 1;
-    } else {
-        commit.has_parent = 0;
-
-    }
-// 5. Serialize the commit to text
-    void *data;
-    size_t len;
-    if (commit_serialize(&commit, &data, &len) != 0) return -1;
-
-    // 6. Write commit object to store
-    if (object_write(OBJ_COMMIT, data, len, commit_id_out) != 0) {
-        free(data);
-        return -1;
-    }
-
-    free(data);
-// 7. Update HEAD/branch ref to point to the new commit
-    return head_update(commit_id_out);
-}
-#include "commit.h"
-#include "index.h"
-#include "tree.h"
-#include "pes.h"
+// TODO functions:     commit_cre
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -65,6 +21,10 @@ int commit_create(const char *message, ObjectID *commit_id_out) {
 #include <unistd.h>
 #include <fcntl.h>
 
+#include "pes.h" 
+#include "index.h"  
+#include "tree.h"   
+#include "commit.h" 
 // Forward declarations (implemented in object.c)
 int object_write(ObjectType type, const void *data, size_t len, ObjectID *id_out);
 int object_read(const ObjectID *id, ObjectType *type_out, void **data_out, size_t *len_out);
@@ -234,8 +194,41 @@ int head_update(const ObjectID *new_commit) {
 //
 // Returns 0 on success, -1 on error.
 int commit_create(const char *message, ObjectID *commit_id_out) {
-    // TODO: Implement commit creation
-    // (See Lab Appendix for logical steps)
-    (void)message; (void)commit_id_out;
-    return -1;
+    Commit commit = {0};
+
+    // 1. Create a tree snapshot from the current index
+    if (tree_from_index(&commit.tree) != 0) {
+        return -1;
+    }
+
+    // 2. Set author and timestamp metadata
+    const char *author = getenv("PES_AUTHOR");
+    if (!author) author = "Ramya Ramesh <ramya@pes.edu>";
+    strncpy(commit.author, author, sizeof(commit.author) - 1);
+    commit.timestamp = (uint64_t)time(NULL);
+    strncpy(commit.message, message, sizeof(commit.message) - 1);
+
+    // 3. Link to the previous commit (the parent)
+    if (head_read(&commit.parent) == 0) {
+        commit.has_parent = 1;
+    } else {
+        commit.has_parent = 0;
+    }
+
+    // 4. Serialize the commit struct into a text buffer
+    void *data;
+    size_t len;
+    if (commit_serialize(&commit, &data, &len) != 0) {
+        return -1;
+    }
+
+    // 5. Write the commit object to the .pes/objects directory
+    if (object_write(OBJ_COMMIT, data, len, commit_id_out) != 0) {
+        free(data);
+        return -1;
+    }
+    free(data);
+
+    // 6. Update the branch/HEAD to point to this new commit
+    return head_update(commit_id_out);
 }

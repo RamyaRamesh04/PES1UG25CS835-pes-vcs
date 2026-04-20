@@ -1,3 +1,4 @@
+
 // tree.c — Tree object serialization and construction
 //
 // PROVIDED functions: get_file_mode, tree_parse, tree_serialize
@@ -8,15 +9,14 @@
 //
 // Example single entry (conceptual):
 //   "100644 hello.txt\0" followed by 32 raw bytes of SHA-256
-#include "tree.h"
-#include "index.h"
-#include "tree.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <dirent.h>
 #include <sys/stat.h>
-
+#include "pes.h"   
+#include "index.h"
+#include "tree.h"
 // ─── Mode Constants ─────────────────────────────────────────────────────────
 
 #define MODE_FILE      0100644
