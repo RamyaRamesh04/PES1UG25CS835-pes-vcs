@@ -48,7 +48,11 @@ int commit_create(const char *message, ObjectID *commit_id_out) {
         free(data);
         return -1;
     }
+
     free(data);
+// 7. Update HEAD/branch ref to point to the new commit
+    return head_update(commit_id_out);
+}
 #include "commit.h"
 #include "index.h"
 #include "tree.h"
