@@ -161,23 +161,32 @@ int object_read(const ObjectID *id, ObjectType *type_out, void **data_out, size_
 
     FILE *f = fopen(path, "rb");
     if (!f) return -1;
-
     fseek(f, 0, SEEK_END);
     long full_len = ftell(f);
-    fseek(f, 0, SEEK_SET);
-
+    rewind(f);
     uint8_t *full_obj = malloc(full_len);
     fread(full_obj, 1, full_len, f);
     fclose(f);
 
-    // Verify Integrity
     ObjectID actual_id;
     compute_hash(full_obj, full_len, &actual_id);
-    if (memcmp(id->hash, actual_id.hash, HASH_SIZE) != 0) {
-        free(full_obj);
-        return -1;
-    }
+    if (memcmp(id->hash, actual_id.hash, HASH_SIZE) != 0) { free(full_obj); return -1; }
 
-    free(full_obj); // Placeholder
-    return -1;
+    // Find the null terminator separating header and data
+    uint8_t *null_byte = memchr(full_obj, '\0', full_len);
+    if (!null_byte) { free(full_obj); return -1; }
+
+    // Parse header (e.g., "blob 123")
+    char *header = (char *)full_obj;
+    if (strncmp(header, "blob", 4) == 0) *type_out = OBJ_BLOB;
+    else if (strncmp(header, "tree", 4) == 0) *type_out = OBJ_TREE;
+    else if (strncmp(header, "commit", 6) == 0) *type_out = OBJ_COMMIT;
+
+    size_t header_len = (null_byte - full_obj) + 1;
+    *len_out = full_len - header_len;
+    *data_out = malloc(*len_out);
+    memcpy(*data_out, null_byte + 1, *len_out);
+
+    free(full_obj);
+    return 0;
 }
