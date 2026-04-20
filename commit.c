@@ -29,7 +29,14 @@ int commit_create(const char *message, ObjectID *commit_id_out) {
     strncpy(commit.message, message, sizeof(commit.message) - 1);
 
     return -1; // Placeholder
+
 }
+// 4. Set parent (if it exists)
+    if (head_read(&commit.parent) == 0) {
+        commit.has_parent = 1;
+    } else {
+        commit.has_parent = 0;
+    }
 #include "commit.h"
 #include "index.h"
 #include "tree.h"
