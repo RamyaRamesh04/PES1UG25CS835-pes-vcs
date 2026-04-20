@@ -8,7 +8,7 @@
 //
 // Example single entry (conceptual):
 //   "100644 hello.txt\0" followed by 32 raw bytes of SHA-256
-#include "pes.h"
+#include "tree.h"
 #include "index.h"
 #include "tree.h"
 #include <stdio.h>
@@ -181,7 +181,7 @@ static int write_tree_recursive(const IndexEntry *entries, int count, int depth,
             TreeEntry *te = &tree.entries[tree.count++];
             te->mode = entries[i].mode;
             strncpy(te->name, current_part, sizeof(te->name) - 1);
-            memcpy(&te->hash, &entries[i].id, sizeof(ObjectID));
+            memcpy(&te->hash, &entries[i].hash, sizeof(ObjectID));
             i++;
         }
     }
