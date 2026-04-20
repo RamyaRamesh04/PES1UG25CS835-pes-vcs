@@ -13,7 +13,23 @@
 //
 // PROVIDED functions: commit_parse, commit_serialize, commit_walk, head_read, head_update
 // TODO functions:     commit_create
+int commit_create(const char *message, ObjectID *commit_id_out) {
+    Commit commit = {0};
 
+    // 1. Create a tree from the current index
+    if (tree_from_index(&commit.tree) != 0) return -1;
+
+    // 2. Set author and timestamp
+    const char *author = getenv("PES_AUTHOR");
+    if (!author) author = "Unknown <unknown@example.com>";
+    strncpy(commit.author, author, sizeof(commit.author) - 1);
+    commit.timestamp = (uint64_t)time(NULL);
+
+    // 3. Set message
+    strncpy(commit.message, message, sizeof(commit.message) - 1);
+
+    return -1; // Placeholder
+}
 #include "commit.h"
 #include "index.h"
 #include "tree.h"
@@ -194,46 +210,8 @@ int head_update(const ObjectID *new_commit) {
 //
 // Returns 0 on success, -1 on error.
 int commit_create(const char *message, ObjectID *commit_id_out) {
-
-    Commit c;
-    memset(&c, 0, sizeof(Commit));
-
-    // 1. Build tree from index
-    if (tree_from_index(&c.tree) != 0) return -1;
-
-    // 2. Read parent (if exists)
-    if (head_read(&c.parent) == 0) {
-        c.has_parent = 1;
-    } else {
-        c.has_parent = 0;
-    }
-
-    // 3. Author + timestamp
-    snprintf(c.author, sizeof(c.author), "%s", pes_author());
-    c.timestamp = (uint64_t)time(NULL);
-
-    // 4. Message
-    snprintf(c.message, sizeof(c.message), "%s", message);
-
-    // 5. Serialize commit
-    void *data;
-    size_t len;
-    if (commit_serialize(&c, &data, &len) != 0) return -1;
-
-    // 6. Write commit object
-    if (object_write(OBJ_COMMIT, data, len, commit_id_out) != 0) {
-        free(data);
-        return -1;
-    }
-
-    free(data);
-
-    // 7. Update HEAD
-    if (head_update(commit_id_out) != 0) return -1;
-
-    return 0;
-}// step1
-// step2
-// step3
-// step4
-// step5
+    // TODO: Implement commit creation
+    // (See Lab Appendix for logical steps)
+    (void)message; (void)commit_id_out;
+    return -1;
+}
