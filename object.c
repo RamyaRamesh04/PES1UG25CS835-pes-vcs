@@ -156,7 +156,28 @@ int object_write(ObjectType type, const void *data, size_t len, ObjectID *id_out
 // The caller is responsible for calling free(*data_out).
 // Returns 0 on success, -1 on error (file not found, corrupt, etc.).
 int object_read(const ObjectID *id, ObjectType *type_out, void **data_out, size_t *len_out) {
-    // TODO: Implement
-    (void)id; (void)type_out; (void)data_out; (void)len_out;
+    char path[512];
+    object_path(id, path, sizeof(path));
+
+    FILE *f = fopen(path, "rb");
+    if (!f) return -1;
+
+    fseek(f, 0, SEEK_END);
+    long full_len = ftell(f);
+    fseek(f, 0, SEEK_SET);
+
+    uint8_t *full_obj = malloc(full_len);
+    fread(full_obj, 1, full_len, f);
+    fclose(f);
+
+    // Verify Integrity
+    ObjectID actual_id;
+    compute_hash(full_obj, full_len, &actual_id);
+    if (memcmp(id->hash, actual_id.hash, HASH_SIZE) != 0) {
+        free(full_obj);
+        return -1;
+    }
+
+    free(full_obj); // Placeholder
     return -1;
 }
