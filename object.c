@@ -94,14 +94,11 @@ int object_exists(const ObjectID *id) {
 //
 // Returns 0 on success, -1 on error.
 int object_write(ObjectType type, const void *data, size_t len, ObjectID *id_out) {
-    // 1. Convert enum type to string
     const char *type_str = (type == OBJ_BLOB) ? "blob" : 
                            (type == OBJ_TREE) ? "tree" : "commit";
 
-    // 2. Build the full object (header + data)
     char header[64];
-    int header_len = snprintf(header, sizeof(header), "%s %zu", type_str, len) + 1; // +1 for \0
-
+    int header_len = snprintf(header, sizeof(header), "%s %zu", type_str, len) + 1;
     size_t full_len = header_len + len;
     uint8_t *full_obj = malloc(full_len);
     if (!full_obj) return -1;
@@ -109,30 +106,57 @@ int object_write(ObjectType type, const void *data, size_t len, ObjectID *id_out
     memcpy(full_obj, header, header_len);
     memcpy(full_obj + header_len, data, len);
 
-    // 3. Compute SHA-256 hash of the FULL object
     compute_hash(full_obj, full_len, id_out);
-// 4. Check if object already exists (deduplication)
+
     if (object_exists(id_out)) {
         free(full_obj);
         return 0;
     }
 
-    // 5. Create shard directory (.pes/objects/XX/)
     char path[512];
     object_path(id_out, path, sizeof(path));
+
+    // Ensure .pes, .pes/objects, and .pes/objects/XX exist
+    mkdir(".pes", 0755);
+    mkdir(OBJECTS_DIR, 0755); 
     
     char dir[512];
-    strncpy(dir, path, sizeof(dir));
+    strcpy(dir, path);
     char *last_slash = strrchr(dir, '/');
     if (last_slash) {
         *last_slash = '\0';
-        mkdir(dir, 0755); // Create the XX directory
+        mkdir(dir, 0755); 
     }
-    // For now, let's just free and return -1 so we can commit this logic
-    free(full_obj);
-    return -1; 
-}
 
+    char tmp_path[512];
+    snprintf(tmp_path, sizeof(tmp_path), "%s.tmp", path);
+
+    int fd = open(tmp_path, O_CREAT | O_WRONLY | O_TRUNC, 0644);
+    if (fd < 0) {
+        perror("Failed to open temp file");
+        free(full_obj);
+        return -1;
+    }
+
+    if (write(fd, full_obj, full_len) != (ssize_t)full_len) {
+        close(fd);
+        free(full_obj);
+        return -1;
+    }
+    
+    fsync(fd);
+    close(fd);
+
+    if (rename(tmp_path, path) != 0) {
+        perror("Failed to rename object file");
+        free(full_obj);
+        return -1;
+    }
+
+    free(full_obj);
+    return 0;
+}
+    // 2. Build the full object
 // Read an object from the store.
 //
 // Steps:

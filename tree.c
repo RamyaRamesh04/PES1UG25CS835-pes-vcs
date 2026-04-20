@@ -120,7 +120,7 @@ int tree_serialize(const Tree *tree, void **data_out, size_t *len_out) {
 // objects to the object store.
 //
 // HINTS - Useful functions and concepts for this phase:
-//   - index_load      : load the staged files into memory
+//   - index_load      : load the staged fi
 //   - strchr          : find the first '/' in a path to separate directories from files
 //   - strncmp         : compare prefixes to group files belonging to the same subdirectory
 //   - Recursion       : you will likely want to create a recursive helper function 
@@ -132,32 +132,86 @@ int tree_serialize(const Tree *tree, void **data_out, size_t *len_out) {
 // Returns 0 on success, -1 on error.
 
 // Recursive helper to build trees from index entries
+// Recursive helper to build trees from index entries
 static int write_tree_recursive(const IndexEntry *entries, int count, int depth, ObjectID *id_out) {
     Tree tree = {0};
     
     for (int i = 0; i < count; ) {
         const char *path = entries[i].path;
-        // Skip ahead to the current depth (after 'depth' number of slashes)
+        
+        // Advance current_part to the correct depth level
         const char *current_part = path;
         for (int d = 0; d < depth; d++) {
-            current_part = strchr(current_part, '/') + 1;
+            char *next = strchr(current_part, '/');
+            if (next) current_part = next + 1;
         }
 
         const char *next_slash = strchr(current_part, '/');
+
         if (next_slash) {
-            // It's a subdirectory! 
-            // We need to group all files in this subdirectory and recurse.
-            i++; // Placeholder for now
+            // --- SUBDIRECTORY LOGIC ---
+            size_t dir_name_len = next_slash - current_part;
+            char dir_name[256] = {0};
+            strncpy(dir_name, current_part, dir_name_len);
+
+            // Find how many entries share this directory prefix to process them together
+            int sub_count = 0;
+            size_t prefix_len = next_slash - path;
+            while (i + sub_count < count) {
+                if (strncmp(entries[i + sub_count].path, path, prefix_len) != 0 || 
+                    entries[i + sub_count].path[prefix_len] != '/') {
+                    break;
+                }
+                sub_count++;
+            }
+
+            ObjectID sub_tree_id;
+            if (write_tree_recursive(&entries[i], sub_count, depth + 1, &sub_tree_id) != 0) return -1;
+
+            TreeEntry *te = &tree.entries[tree.count++];
+            te->mode = MODE_DIR;
+            strncpy(te->name, dir_name, sizeof(te->name) - 1);
+            memcpy(&te->hash, &sub_tree_id, sizeof(ObjectID));
+
+            i += sub_count; // Skip all files inside that subdirectory
         } else {
-            // It's a file in the current directory.
-            i++; 
+            // --- FILE LOGIC ---
+            // It's a file at the current level: add it directly to the tree
+            TreeEntry *te = &tree.entries[tree.count++];
+            te->mode = entries[i].mode;
+            strncpy(te->name, current_part, sizeof(te->name) - 1);
+            memcpy(&te->hash, &entries[i].id, sizeof(ObjectID));
+            i++;
         }
     }
+
+    // Write the finished tree level to the object store
+    void *data;
+    size_t len;
+    if (tree_serialize(&tree, &data, &len) != 0) return -1;
+    if (object_write(OBJ_TREE, data, len, id_out) != 0) {
+        free(data);
+        return -1;
+    }
+    free(data);
     return 0;
 }
 int tree_from_index(ObjectID *id_out) {
-    // TODO: Implement recursive tree building
-    // (See Lab Appendix for logical steps)
-    (void)id_out;
-    return -1;
+    Index idx = {0};
+    
+    // Load the index (Phase 3 will implement this fully)
+    if (index_load(&idx) != 0) return -1;
+
+    // If index is empty, we handle it as an empty root tree
+    if (idx.count == 0) {
+        Tree tree = {0};
+        void *data; size_t len;
+        tree_serialize(&tree, &data, &len);
+        object_write(OBJ_TREE, data, len, id_out);
+        free(data);
+        return 0;
+    }
+
+    // Start the recursion from the root (depth 0)
+    return write_tree_recursive(idx.entries, idx.count, 0, id_out);
 }
