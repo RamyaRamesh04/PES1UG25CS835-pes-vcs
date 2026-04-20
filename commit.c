@@ -36,7 +36,19 @@ int commit_create(const char *message, ObjectID *commit_id_out) {
         commit.has_parent = 1;
     } else {
         commit.has_parent = 0;
+
     }
+// 5. Serialize the commit to text
+    void *data;
+    size_t len;
+    if (commit_serialize(&commit, &data, &len) != 0) return -1;
+
+    // 6. Write commit object to store
+    if (object_write(OBJ_COMMIT, data, len, commit_id_out) != 0) {
+        free(data);
+        return -1;
+    }
+    free(data);
 #include "commit.h"
 #include "index.h"
 #include "tree.h"
