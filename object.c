@@ -111,7 +111,23 @@ int object_write(ObjectType type, const void *data, size_t len, ObjectID *id_out
 
     // 3. Compute SHA-256 hash of the FULL object
     compute_hash(full_obj, full_len, id_out);
+// 4. Check if object already exists (deduplication)
+    if (object_exists(id_out)) {
+        free(full_obj);
+        return 0;
+    }
 
+    // 5. Create shard directory (.pes/objects/XX/)
+    char path[512];
+    object_path(id_out, path, sizeof(path));
+    
+    char dir[512];
+    strncpy(dir, path, sizeof(dir));
+    char *last_slash = strrchr(dir, '/');
+    if (last_slash) {
+        *last_slash = '\0';
+        mkdir(dir, 0755); // Create the XX directory
+    }
     // For now, let's just free and return -1 so we can commit this logic
     free(full_obj);
     return -1; 

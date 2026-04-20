@@ -10,6 +10,10 @@
 //   "100644 hello.txt\0" followed by 32 raw bytes of SHA-256
 
 #include "tree.h"
+#include "index.h"
+
+
+#include "pes.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -129,9 +133,83 @@ int tree_serialize(const Tree *tree, void **data_out, size_t *len_out) {
 //   - object_write    : save that binary buffer to the store as OBJ_TREE
 //
 // Returns 0 on success, -1 on error.
+static int write_tree_level(Index *index, const char *prefix, ObjectID *out) {
+
+    Tree tree;
+    tree.count = 0;
+
+    size_t prefix_len = strlen(prefix);
+
+    for (int i = 0; i < index->count; i++) {
+        IndexEntry *e = &index->entries[i];
+
+        // skip if not in this directory
+        if (strncmp(e->path, prefix, prefix_len) != 0) continue;
+
+        const char *rest = e->path + prefix_len;
+
+        // skip nested (we handle later)
+        if (strchr(rest, '/')) continue;
+
+        TreeEntry *entry = &tree.entries[tree.count++];
+
+        entry->mode = e->mode;
+        strcpy(entry->name, rest);
+        entry->hash = e->hash;
+
+        // detect subdirectory
+        char *slash = strchr(rest, '/');
+
+        if (slash) {
+            char dirname[256];
+            strncpy(dirname, rest, slash - rest);
+            dirname[slash - rest] = '\0';
+
+            // avoid duplicates
+            int exists = 0;
+            for (int j = 0; j < tree.count; j++) {
+                if (strcmp(tree.entries[j].name, dirname) == 0) {
+                    exists = 1;
+                    break;
+                }
+            }
+            if (exists) continue;
+
+            // recursive call
+            char new_prefix[512];
+            snprintf(new_prefix, sizeof(new_prefix), "%s%s/", prefix, dirname);
+
+            ObjectID sub_id;
+            write_tree_level(index, new_prefix, &sub_id);
+
+            TreeEntry *entry = &tree.entries[tree.count++];
+            entry->mode = MODE_DIR;
+            strcpy(entry->name, dirname);
+            entry->hash = sub_id;
+        }
+    }
+
+    if (tree.count == 0) {
+        memset(out, 0, sizeof(ObjectID));
+        return 0;
+    }
+    // temporary return (no subdirs yet)
+    void *data;
+    size_t len;
+
+    tree_serialize(&tree, &data, &len);
+    object_write(OBJ_TREE, data, len, out);
+
+    free(data);
+    return 0;
+}
+
 int tree_from_index(ObjectID *id_out) {
-    // TODO: Implement recursive tree building
-    // (See Lab Appendix for logical steps)
-    (void)id_out;
-    return -1;
+    // Phase 2: start tree construction
+
+    Index index;
+    if (index_load(&index) != 0) return -1;
+
+    // will implement logic step by step
+    return write_tree_level(&index, "", id_out);
 }
